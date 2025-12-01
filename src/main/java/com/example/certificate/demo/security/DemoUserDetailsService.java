@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class DemoUserDetailsService implements UserDetailsService {
   private static final Logger LOGGER = LoggerFactory.getLogger(DemoUserDetailsService.class);
   private static final String MYUSER = "myuser";
+  private static final String KYLE_USER = "Kyle P. Neuman";
 
   private final PasswordEncoder passwordEncoder;
 
@@ -25,6 +26,12 @@ public class DemoUserDetailsService implements UserDetailsService {
 
     if (MYUSER.equals(username)) {
       return User.withUsername(MYUSER)
+          .passwordEncoder(passwordEncoder::encode)
+          .password("none")
+          .roles("USER")
+          .build();
+    } else if (KYLE_USER.equals(username)) {
+      return User.withUsername(KYLE_USER)
           .passwordEncoder(passwordEncoder::encode)
           .password("none")
           .roles("USER")
