@@ -429,25 +429,21 @@ function Create-LoggingConfig {
 }
 
 # Function to build the project
-function Build-Project {
+function Invoke-ProjectBuild {
     param([string]$JavaHome)
     
     Write-Info "Building the project..."
     
-    try {
-        $env:JAVA_HOME = $JavaHome
-        
-        # Clean and build
-        .\gradlew clean build
-        
-        if ($LASTEXITCODE -ne 0) {
-            throw "Gradle build failed"
-        }
-        
-        Write-Success "Project built successfully"
-    } catch {
-        throw "Failed to build project: $($_.Exception.Message)"
+    $env:JAVA_HOME = $JavaHome
+    
+    # Clean and build
+    .\gradlew clean build
+    
+    if ($LASTEXITCODE -ne 0) {
+        throw "Gradle build failed"
     }
+    
+    Write-Success "Project built successfully"
 }
 
 # Function to start the server
@@ -518,7 +514,7 @@ function Main {
         
         # Step 9: Build project
         Write-Step "9" "Building the project"
-        Build-Project -JavaHome $JavaHome
+        Invoke-ProjectBuild -JavaHome $JavaHome
         
         # Step 10: Start server
         Write-Step "10" "Starting the server"
