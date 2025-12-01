@@ -24,6 +24,7 @@
     .\setup-treasury-cert-auth.ps1 -JavaHome "C:\Program Files\Eclipse Adoptium\jdk-17.0.17.10-hotspot"
 #>
 
+[CmdletBinding()]
 param(
     [string]$JavaHome = "",
     [switch]$SkipMkcert = $false,
@@ -117,7 +118,7 @@ function Install-MkcertTool {
         
         if (-not $SkipMkcert) {
             Write-Info "Installing mkcert via winget..."
-            $wingetOutput = winget install FiloSottile.mkcert --accept-source-agreements --accept-package-agreements 2>&1
+            winget install FiloSottile.mkcert --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
             
             # Refresh PATH
             $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
@@ -147,7 +148,7 @@ function Install-MkcertTool {
 }
 
 # Function to setup local CA
-function Setup-LocalCA {
+function Set-LocalCA {
     param([string]$MkcertPath, [string]$JavaHome)
     
     Write-Info "Setting up local Certificate Authority..."
@@ -184,14 +185,13 @@ function Install-CAIntoJava {
     try {
         $keytoolPath = "$JavaHome\bin\keytool.exe"
         $caCertPath = "$env:LOCALAPPDATA\mkcert\rootCA.pem"
-        $cacertsPath = "$JavaHome\lib\security\cacerts"
         
         if (-not (Test-Path $caCertPath)) {
             throw "mkcert CA certificate not found at $caCertPath"
         }
         
         # Check if already installed
-        $result = & $keytoolPath -list -cacerts -alias "mkcert-local-ca" -storepass changeit 2>$null
+        & $keytoolPath -list -cacerts -alias "mkcert-local-ca" -storepass changeit 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Warning "mkcert CA is already installed in Java trust store"
             return
@@ -217,7 +217,7 @@ function Install-CAIntoJava {
 }
 
 # Function to create server keystore
-function Create-ServerKeystore {
+function New-ServerKeystore {
     param([string]$MkcertPath)
     
     Write-Info "Creating server keystore..."
@@ -249,7 +249,7 @@ function Create-ServerKeystore {
 }
 
 # Function to create Treasury trust store
-function Create-TreasuryTrustStore {
+function New-TreasuryTrustStore {
     param([string]$JavaHome)
     
     Write-Info "Creating Treasury trust store..."
@@ -350,7 +350,7 @@ function Update-ApplicationProperties {
 }
 
 # Function to create logging configuration
-function Create-LoggingConfig {
+function New-LoggingConfig {
     Write-Info "Creating logging configuration..."
     
     try {
@@ -490,7 +490,7 @@ function Main {
         
         # Step 3: Setup local CA
         Write-Step "3" "Setting up local Certificate Authority"
-        Setup-LocalCA -MkcertPath $mkcertPath -JavaHome $JavaHome
+        Set-LocalCA -MkcertPath $mkcertPath -JavaHome $JavaHome
         
         # Step 4: Install CA into Java trust store
         Write-Step "4" "Installing CA into Java trust store"
@@ -498,11 +498,11 @@ function Main {
         
         # Step 5: Create server keystore
         Write-Step "5" "Creating server keystore"
-        Create-ServerKeystore -MkcertPath $mkcertPath
+        New-ServerKeystore -MkcertPath $mkcertPath
         
         # Step 6: Create Treasury trust store
         Write-Step "6" "Creating Treasury trust store"
-        Create-TreasuryTrustStore -JavaHome $JavaHome
+        New-TreasuryTrustStore -JavaHome $JavaHome
         
         # Step 7: Update application.properties
         Write-Step "7" "Updating application configuration"
@@ -510,7 +510,7 @@ function Main {
         
         # Step 8: Create logging configuration
         Write-Step "8" "Creating logging configuration"
-        Create-LoggingConfig
+        New-LoggingConfig
         
         # Step 9: Build project
         Write-Step "9" "Building the project"
