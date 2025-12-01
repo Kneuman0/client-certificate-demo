@@ -30,6 +30,37 @@ server api using a command line or UI client.
   
 ## Getting started
 
+### Windows (PowerShell)
+```powershell
+# Run the complete setup
+.\setup-treasury-cert-auth.ps1
+
+# Or with specific Java installation
+.\setup-treasury-cert-auth.ps1 -JavaHome "C:\Program Files\Eclipse Adoptium\jdk-17.0.17.10-hotspot"
+
+# Build only (don't start server)
+.\setup-treasury-cert-auth.ps1 -BuildOnly
+
+# Skip mkcert installation if already installed
+.\setup-treasury-cert-auth.ps1 -SkipMkcert
+```
+- See SETUP_README.md for more information
+
+## 📋 Prerequisites
+
+### Required Software
+- **Windows 10/11** with PowerShell 5.1+
+- **Java 17+** (JDK with keytool)
+- **Gradle 7.0+** (included with project)
+- **Git** (for cloning repository)
+- **Winget** (included with Windows 10/11)
+
+### Administrator Privileges
+- Required for installing certificates into Java trust store
+- Run PowerShell as Administrator
+
+## Getting Started Without PowerShell
+
 To create a local certificate authority (with your own root certificate)
 use the following command. Make sure you also have set the _JAVA_HOME_ environment variable if you also want 
 to install the root certificate into the trust store of your JDK. You have to repeat this step for each Java JDK you want
@@ -72,71 +103,6 @@ server.ssl.key-store=classpath:server-keystore.p12
 server.ssl.key-store-type=PKCS12
 server.ssl.key-store-password=changeit
 server.ssl.key-password=changeit
-```
-
-
-## Set up the client certificate
-
-First we need of course again a valid trusted client certificate to authenticate 
-our client at the server.
-Open a command line terminal again and navigate to subdirectory _src/main/resources_ of this project
-and then use the following command.
-
-```shell script
-mkcert -p12-file myuser-client.p12 -client -pkcs12 myuser
-```
-
-This file contains the client certificate including the private/public key pair.
-To authenticate your web browser for our Spring Boot server application just import
-the file _myuser-client.p12_ into the browsers certificate store.
-
-This is not sufficient, the server application also needs just the certificate (with public key)
-to be able to validate the client certificate.
-To achieve this we also need to configure a trust keystore for Spring Boot. 
-You must not use the keystore we just created because the server should not get access to the private key.
-
-Instead, we have to create another keystore using the [Keystore Explorer](https://keystore-explorer.org/)
-that only contains the certificate.
-
-But first we have to export the certificate from the existing keystore _myuser-client.p12_:
-
-1. Open keystore with the Keystore Explorer. Select _myuser-client.p12_ in file dialog.
-2. Then right-click on the single entry and select _Export/Export certificate chain_ and then export the certificate to
-_src/main/resources/myuser.cer_.
-   
-![CertExport](images/cert_export.png)
-
-To use the client certificate on a command line client like _httpie_ we also need the private key 
-of the client certificate as well.  
-Therefore, we also export the private key from the same keystore _myuser-client.p12_:
-
-* Right-click on the single entry and select _Export/Export Private Key_, select _PKCS#8_ as type and then export the 
-key to _src/main/resources/myuser.pkcs8_.
-
-![PrivateKeyExport](images/keystore_explorer_export_private_key.png)
-
-## Set up the server trust store
-
-Also, the server side has to trust the client certificate. To achieve this we need to set up a 
-_trust store_ for our server containing the client certificate together with the public key
-to validate the client certificate specified with the client requests.
-
-So we will now import the previously exported _myuser.cer_ certificate into a new keystore:
-
-1. Open the explorer and then create a new keystore using the menu _File/New_. 
-2. Then chose _PKCS#12_ as type
-3. Now select the menu _Tools/Import Trusted Certificate_
-4. Select the exported _myuser.cer_ file from previous section, use _myuser_ as alias.
-5. Save the keystore as _src/main/resources/myuser-trust.p12_ and use password _changeit_ when prompted for
-
-Make sure you __ONLY__ import the certificate (containing the public key), the private key __MUST__ remain on the client side only. 
-
-Now let's use this new trust store:
-
-```properties
-server.ssl.trust-store=classpath:myuser-trust.p12
-server.ssl.trust-store-password=changeit
-server.ssl.client-auth=need
 ```
 
 We need the trust store to enable trust between the server application and the client certificate in the web browser.
@@ -288,8 +254,7 @@ To start the application use [gradle](https://gradle.org/) with the command ```g
 
 #### Web Browser
 
-To authenticate your web browser for our Spring Boot server application make sure you have imported
-the file _myuser-client.p12_ into your browser's certificate store.
+To authenticate your web browser for our Spring Boot server application make sure you have your PIV plugged into your machine.
 
 If you navigate your browser to ```https://localhost:8443/api``` then you first should see
 a popup window requesting a client certificate. Depending on your browser configuration
@@ -301,85 +266,6 @@ If the authentication with the selected client certificate succeeds then you sho
 
 ![BrowserItWorks](images/browser_it_works.png)
 
-#### Postman
-
-If you are more into UI based tools then you can use [postman](https://www.postman.com) to send requests to the server.
-Unfortunately postman does not work with self-signed certificates with ssl validation turned on.
-So open the settings (Menu _File/Settings_), in the _General_ tab deactivate _SSL certificate verification_.
-
-To add the required files for the client certificate authentication just switch to the tab _Certificates_ in the _settings_ dialog.
-
-![PostmanCert](images/postman_certificates.png)
-
-Specify the following settings here:
-
-* Host: localhost:8443
-* PFX file: myuser-client.p12
-* Passphrase: changeit   
-
-Now you can add a new request as shown in the next picture.
-
-![PostmanRequest](images/postman_request.png)
-
-Click the _Send_ button to perform the request. Then you should see the expected output.
-
-#### Curl
-
-[Curl](https://curl.haxx.se/) can be configured to connect via a valid secure HTTPS connection and also
-authenticating using the client certificate.
-
-Before trying this please make sure that you have imported the CA certificate into the CA store of your operating system using _mkcert_.
-
-The most easy way for curl to use client certificates is to specify a keystore stored in _PKCS #12_ format.
-This way you can hand over the certificate together with the private key to curl at once. In addition to this you need to specify the password to access the keystore and the private key.
-
-Check out this command for performing access via _curl_:  
-
-```shell script
-curl --cert ./src/main/resources/myuser-client.p12:changeit --cert-type p12 -v  https://localhost:8443/api
-```
-
-You may also specify the client certificate and the private key separately:
-
-```shell script
-curl --cert ./src/main/resources/myuser.cer --cert-type pem --key ./src/main/resources/myuser.pkcs8 --pass changeit  -v  https://localhost:8443/api
-```
-
-This should lead to the following output:
-
-```shell script
-* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
-* ALPN, server did not agree to a protocol
-* Server certificate:
-*  subject: O=mkcert development certificate; OU=afa@t470p (Andreas Falk); CN=localhost
-*  start date: Jun  1 00:00:00 2019 GMT
-*  expire date: Jan 28 22:12:05 2030 GMT
-*  subjectAltName: host "localhost" matched cert's "localhost"
-*  issuer: O=mkcert development CA; OU=afa@t470p (Andreas Falk); CN=mkcert afa@t470p (Andreas Falk)
-*  SSL certificate verify ok.
-* TLSv1.3 (OUT), TLS Unknown, Unknown (23):
-> GET /api HTTP/1.1
-> Host: localhost:8443
-> User-Agent: curl/7.58.0
-> Accept: */*
-> 
-* TLSv1.3 (IN), TLS Unknown, Certificate Status (22):
-* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
-* TLSv1.3 (IN), TLS Unknown, Unknown (23):
-< HTTP/1.1 200 
-< X-Content-Type-Options: nosniff
-< X-XSS-Protection: 1; mode=block
-< Cache-Control: no-cache, no-store, max-age=0, must-revalidate
-< Pragma: no-cache
-< Expires: 0
-< X-Frame-Options: DENY
-< Content-Type: text/plain;charset=UTF-8
-< Content-Length: 19
-< Date: Mon, 23 Mar 2020 20:30:53 GMT
-< 
-* Connection #0 to host localhost left intact
-it works for myuser% 
-```
 
 ### Server-Side Output
 
